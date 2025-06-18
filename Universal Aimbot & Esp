@@ -1,0 +1,167 @@
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local MapFolder = workspace
+
+local AimbotEnabled = false
+local Sensitivity = 0.2
+local IgnoreTeammates = true
+
+local ESPEnabled = true
+local ESPColor = Color3.new(1, 0, 0)
+local TeamColorESP = true
+local Highlights = {}
+
+local function isTeammate(player)
+    return IgnoreTeammates and player.Team and LocalPlayer.Team and player.Team == LocalPlayer.Team
+end
+
+local function getAimPart(character)
+    local partNames = {"Head", "HumanoidRootPart", "Torso", "UpperTorso"}
+    for _, name in ipairs(partNames) do
+        local part = character:FindFirstChild(name)
+        if part then
+            return part
+        end
+    end
+
+    for _, obj in pairs(character:GetDescendants()) do
+        if obj:IsA("MeshPart") or obj:IsA("BasePart") then
+            return obj
+        end
+    end
+
+    return nil
+end
+
+local function updateHighlight(player)
+    if not ESPEnabled then
+        if Highlights[player] then
+            Highlights[player]:Destroy()
+            Highlights[player] = nil
+        end
+        return
+    end
+
+    local character = player.Character
+    if not character then return end
+
+    if isTeammate(player) then
+        if Highlights[player] then
+            Highlights[player]:Destroy()
+            Highlights[player] = nil
+        end
+        return
+    end
+
+    if not Highlights[player] then
+        local highlight = Instance.new("Highlight")
+        highlight.Parent = character
+        highlight.Adornee = character
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        Highlights[player] = highlight
+    end
+
+    if TeamColorESP and player.Team then
+        Highlights[player].FillColor = player.Team.TeamColor.Color
+        Highlights[player].OutlineColor = player.Team.TeamColor.Color
+    else
+        Highlights[player].FillColor = ESPColor
+        Highlights[player].OutlineColor = ESPColor
+    end
+
+    character.AncestryChanged:Connect(function()
+        if not character.Parent then
+            if Highlights[player] then
+                Highlights[player]:Destroy()
+                Highlights[player] = nil
+            end
+        end
+    end)
+end
+
+local function setupPlayer(player)
+    if player.Character then
+        updateHighlight(player)
+    end
+    
+    player.CharacterAdded:Connect(function(character)
+        wait(1)
+        updateHighlight(player)
+    end)
+    
+    player.AncestryChanged:Connect(function(_, parent)
+        if not parent then
+            if Highlights[player] then
+                Highlights[player]:Destroy()
+                Highlights[player] = nil
+            end
+        end
+    end)
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        setupPlayer(player)
+    end
+end
+
+Players.PlayerAdded:Connect(function(player)
+    if player ~= LocalPlayer then
+        setupPlayer(player)
+    end
+end)
+
+local function getClosestTarget()
+    local closestPlayer = nil
+    local closestDistance = math.huge
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            if isTeammate(player) then
+                continue
+            end
+
+            local targetPart = getAimPart(player.Character)
+            if not targetPart then
+                continue
+            end
+
+            local screenPosition, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+            if onScreen then
+                local distance = (Vector2.new(screenPosition.X, screenPosition.Y) - Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)).Magnitude
+                if distance < closestDistance then
+                    closestDistance = distance
+                    closestPlayer = targetPart
+                end
+            end
+        end
+    end
+
+    return closestPlayer
+end
+
+UserInputService.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        AimbotEnabled = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        AimbotEnabled = false
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if AimbotEnabled then
+        local target = getClosestTarget()
+        if target then
+            local direction = (target.Position - Camera.CFrame.Position).unit
+            local newCFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, Camera.CFrame.Position + direction), Sensitivity)
+            Camera.CFrame = newCFrame
+        end
+    end
+end)
