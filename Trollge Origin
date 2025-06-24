@@ -530,43 +530,45 @@ CreateToggle('TPCollect', false, function(state)
     local hrp = player.Character
         and player.Character:FindFirstChild('HumanoidRootPart')
 
-    if tpCollectLoop then
-        tpCollectLoop:Disconnect()
-        tpCollectLoop = nil
+    if not tpCollectActive then
+        return -- stop here if turned off
     end
 
-    if tpCollectActive then
-        tpCollectLoop = coroutine.create(function()
-            while tpCollectActive do
-                if
-                    not player.Character
-                    or not player.Character:FindFirstChild('HumanoidRootPart')
-                then
+    if tpCollectLoop then
+        tpCollectLoop = nil -- Reset old coroutine
+    end
+
+    tpCollectLoop = coroutine.create(function()
+        while tpCollectActive do
+            if
+                not player.Character
+                or not player.Character:FindFirstChild('HumanoidRootPart')
+            then
+                break
+            end
+
+            hrp = player.Character.HumanoidRootPart
+
+            local chests = game.Workspace.chests:GetChildren()
+            for _, chest in ipairs(chests) do
+                if not tpCollectActive then
                     break
                 end
-                hrp = player.Character.HumanoidRootPart
-
-                local chests = game.Workspace.chests:GetChildren()
-                for _, chest in ipairs(chests) do
-                    if not tpCollectActive then
-                        break
-                    end -- stops mid-way
-                    if
-                        chest:IsA('BasePart')
-                        and chest:FindFirstChild('ProximityPrompt')
-                    then
-                        hrp.CFrame = chest.CFrame + Vector3.new(0, 2, 0)
-                        task.wait(0.15)
-                        fireproximityprompt(chest.ProximityPrompt)
-                        task.wait(0.1)
-                    end
+                if
+                    chest:IsA('BasePart')
+                    and chest:FindFirstChild('ProximityPrompt')
+                then
+                    hrp.CFrame = chest.CFrame + Vector3.new(0, 2, 0)
+                    task.wait(0.15)
+                    fireproximityprompt(chest.ProximityPrompt)
+                    task.wait(0.1)
                 end
-
-                task.wait(0.5) -- slight delay before next chest scan
             end
-        end)
-        coroutine.resume(tpCollectLoop)
-    end
+
+            task.wait(0.5)
+        end
+    end)
+    coroutine.resume(tpCollectLoop)
 end)
 
 CreateToggle('Auto Collect Nearby Chests', false, function(state)
