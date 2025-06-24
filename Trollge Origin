@@ -512,7 +512,16 @@ game:GetService('UserInputService').InputChanged:Connect(function(input)
     end
 end)
 
--- Example usage:
+CreateSection('Client Only')
+CreateButton('Hide Username', function()
+    local player = game.Players.LocalPlayer
+    if player.Character and player.Character:FindFirstChild('Head') then
+        local overhead = player.Character.Head:FindFirstChild('Overhead')
+        if overhead then
+            overhead:Destroy()
+        end
+    end
+end)
 CreateSection('Toggle Features')
 
 CreateToggle('TPCollect', false, function(state)
