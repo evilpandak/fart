@@ -1,0 +1,196 @@
+local RunService = game:GetService('RunService')
+local Workspace = game:GetService('Workspace')
+
+local ItemsFolder = Workspace:WaitForChild('items')
+local ZombiesFolder = Workspace:WaitForChild('Zombies')
+
+local ItemESP = {}
+local ZombieESP = {}
+
+local ItemColor = Color3.fromRGB(255, 0, 0)
+
+local function createBillboard(text, adornee)
+    local billboard = Instance.new('BillboardGui')
+    billboard.Size = UDim2.new(0, 60, 0, 12)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Name = 'ESPLabel'
+    billboard.Parent = adornee
+
+    local label = Instance.new('TextLabel')
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.TextStrokeTransparency = 0.7
+    label.TextScaled = true
+    label.Font = Enum.Font.SourceSans
+    label.Parent = billboard
+
+    return billboard
+end
+
+-- ITEM ESP
+local function removeItemESP(model)
+    local data = ItemESP[model]
+    if data then
+        if data.Highlight then
+            data.Highlight:Destroy()
+        end
+        if data.Billboard then
+            data.Billboard:Destroy()
+        end
+        ItemESP[model] = nil
+    end
+end
+
+local function setupItemESP(model)
+    if not model:IsA('Model') or ItemESP[model] then
+        return
+    end
+
+    local function trySetup()
+        local part = model.PrimaryPart
+        if not part then
+            for _, p in model:GetDescendants() do
+                if p:IsA('BasePart') then
+                    part = p
+                    break
+                end
+            end
+        end
+        if not part then
+            return false
+        end
+
+        if model:FindFirstChildWhichIsA('Highlight', true) then
+            model:FindFirstChildWhichIsA('Highlight', true):Destroy()
+        end
+
+        local highlight = Instance.new('Highlight')
+        highlight.Name = 'ItemHighlight'
+        highlight.FillColor = ItemColor
+        highlight.OutlineColor = ItemColor
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.Parent = model
+
+        -- Set Adornee after parenting to avoid Roblox bug
+        highlight.Adornee = model
+
+        local billboard = createBillboard(model.Name, part)
+
+        ItemESP[model] = {
+            Highlight = highlight,
+            Billboard = billboard,
+        }
+
+        model.AncestryChanged:Connect(function(_, parent)
+            if not parent then
+                removeItemESP(model)
+            end
+        end)
+
+        return true
+    end
+
+    task.spawn(function()
+        for _ = 1, 10 do
+            if trySetup() then
+                break
+            end
+            task.wait(0.1)
+        end
+    end)
+end
+
+-- ZOMBIE ESP
+local function removeZombieESP(model)
+    local data = ZombieESP[model]
+    if data then
+        if data.Billboard then
+            data.Billboard:Destroy()
+        end
+        if data.Connection then
+            data.Connection:Disconnect()
+        end
+        if data.DiedConn then
+            data.DiedConn:Disconnect()
+        end
+        ZombieESP[model] = nil
+    end
+end
+
+local function setupZombieESP(model)
+    if not model:IsA('Model') or ZombieESP[model] then
+        return
+    end
+
+    local function trySetup()
+        local humanoid = model:FindFirstChildOfClass('Humanoid')
+        if not humanoid then
+            return false
+        end
+
+        local part = model.PrimaryPart
+        if not part then
+            for _, p in model:GetDescendants() do
+                if p:IsA('BasePart') then
+                    part = p
+                    break
+                end
+            end
+        end
+        if not part then
+            return false
+        end
+
+        local billboard = createBillboard(model.Name, part)
+
+        local renderConn = RunService.RenderStepped:Connect(function()
+            if humanoid and humanoid.Health <= 0 then
+                removeZombieESP(model)
+            end
+        end)
+
+        local diedConn = humanoid.Died:Connect(function()
+            removeZombieESP(model)
+        end)
+
+        ZombieESP[model] = {
+            Billboard = billboard,
+            Connection = renderConn,
+            DiedConn = diedConn,
+        }
+
+        model.AncestryChanged:Connect(function(_, parent)
+            if not parent then
+                removeZombieESP(model)
+            end
+        end)
+
+        return true
+    end
+
+    task.spawn(function()
+        for _ = 1, 10 do
+            if trySetup() then
+                break
+            end
+            task.wait(0.1)
+        end
+    end)
+end
+
+-- SCANNER LOOP: checks every second for newly loaded models
+task.spawn(function()
+    while true do
+        for _, model in ipairs(ItemsFolder:GetChildren()) do
+            setupItemESP(model)
+        end
+        for _, model in ipairs(ZombiesFolder:GetChildren()) do
+            setupZombieESP(model)
+        end
+        task.wait(1)
+    end
+end)
+--DONT FORGET TO LIKE AND SUBSCRIBE!!! :D LEAVE SUGGESTIONS ON MY YOUTUBE (BasicIsBetter)!
