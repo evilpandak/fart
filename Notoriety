@@ -1,0 +1,932 @@
+local Players = game:GetService('Players')
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild('PlayerGui')
+local guardEspParts = {}
+local cameraEspParts = {}
+local itemEspParts = {}
+
+local gui = Instance.new('ScreenGui')
+gui.Name = 'ModularGUI'
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.DisplayOrder = 10
+gui.IgnoreGuiInset = true
+gui.Parent = playerGui
+
+local colors = {
+    background = Color3.fromRGB(20, 20, 20),
+    header = Color3.fromRGB(30, 30, 30),
+    text = Color3.fromRGB(255, 255, 255),
+    subtext = Color3.fromRGB(200, 200, 200),
+    button = Color3.fromRGB(50, 50, 50),
+    buttonHover = Color3.fromRGB(80, 80, 80),
+    toggleOff = Color3.fromRGB(50, 50, 50),
+    toggleOn = Color3.fromRGB(0, 200, 150),
+    input = Color3.fromRGB(40, 40, 40),
+    border = Color3.fromRGB(70, 70, 70),
+    tabActive = Color3.fromRGB(40, 40, 40),
+    tabInactive = Color3.fromRGB(30, 30, 30),
+    resizeHandle = Color3.fromRGB(100, 100, 100),
+}
+
+-- Main frame with initial size
+local mainFrame = Instance.new('Frame')
+mainFrame.Name = 'MainFrame'
+mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+mainFrame.BackgroundColor3 = colors.background
+mainFrame.BorderSizePixel = 1
+mainFrame.BorderColor3 = colors.border
+mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+mainFrame.Size = UDim2.new(0, 350, 0, 400) -- Larger initial size
+mainFrame.ClipsDescendants = true
+mainFrame.Parent = gui
+
+-- Title bar
+local titleBar = Instance.new('Frame')
+titleBar.Name = 'TitleBar'
+titleBar.BackgroundColor3 = colors.header
+titleBar.BorderSizePixel = 0
+titleBar.Size = UDim2.new(1, 0, 0, 28)
+titleBar.Parent = mainFrame
+
+local title = Instance.new('TextLabel')
+title.Name = 'Title'
+title.BackgroundTransparency = 1
+title.Position = UDim2.new(0, 10, 0, 0)
+title.Size = UDim2.new(1, -40, 1, 0)
+title.Font = Enum.Font.Code
+title.Text = 'BasicIsBetter! SUBSCRIBE!'
+title.TextColor3 = colors.text
+title.TextSize = 14
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = titleBar
+
+local closeButton = Instance.new('TextButton')
+closeButton.Name = 'CloseButton'
+closeButton.AnchorPoint = Vector2.new(1, 0.5)
+closeButton.BackgroundTransparency = 1
+closeButton.Position = UDim2.new(1, -10, 0.5, 0)
+closeButton.Size = UDim2.new(0, 20, 0, 20)
+closeButton.Font = Enum.Font.Code
+closeButton.Text = 'X'
+closeButton.TextColor3 = colors.text
+closeButton.TextSize = 14
+closeButton.Parent = titleBar
+
+closeButton.MouseButton1Click:Connect(function()
+    gui:Destroy()
+end)
+
+-- Make GUI draggable (works for both mouse and touch)
+local dragging, dragInput, dragStart, startPos
+local function updateDrag(input)
+    local delta = input.Position - dragStart
+    mainFrame.Position = UDim2.new(
+        startPos.X.Scale,
+        startPos.X.Offset + delta.X,
+        startPos.Y.Scale,
+        startPos.Y.Offset + delta.Y
+    )
+end
+
+titleBar.InputBegan:Connect(function(input)
+    if
+        input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch
+    then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+titleBar.InputChanged:Connect(function(input)
+    if
+        input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch
+    then
+        dragInput = input
+    end
+end)
+
+game:GetService('UserInputService').InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        updateDrag(input)
+    end
+end)
+
+-- Tab system with scrolling for many tabs
+local tabContainer = Instance.new('Frame')
+tabContainer.Name = 'TabContainer'
+tabContainer.BackgroundColor3 = colors.header
+tabContainer.BorderSizePixel = 0
+tabContainer.Position = UDim2.new(0, 0, 0, 28)
+tabContainer.Size = UDim2.new(1, 0, 0, 28)
+tabContainer.ClipsDescendants = true
+tabContainer.Parent = mainFrame
+
+local tabScrollingFrame = Instance.new('ScrollingFrame')
+tabScrollingFrame.Name = 'TabScroller'
+tabScrollingFrame.BackgroundTransparency = 1
+tabScrollingFrame.Size = UDim2.new(1, 0, 1, 0)
+tabScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+tabScrollingFrame.ScrollBarThickness = 4
+tabScrollingFrame.ScrollingDirection = Enum.ScrollingDirection.X
+tabScrollingFrame.AutomaticCanvasSize = Enum.AutomaticSize.X
+tabScrollingFrame.Parent = tabContainer
+
+local tabContentContainer = Instance.new('Frame')
+tabContentContainer.Name = 'TabContentContainer'
+tabContentContainer.BackgroundTransparency = 1
+tabContentContainer.Position = UDim2.new(0, 10, 0, 56)
+tabContentContainer.Size = UDim2.new(1, -20, 1, -76) -- Adjusted for resize handle
+tabContentContainer.ClipsDescendants = true
+tabContentContainer.Parent = mainFrame
+
+-- Add resize handle (bottom right corner)
+local resizeHandle = Instance.new('Frame')
+resizeHandle.Name = 'ResizeHandle'
+resizeHandle.BackgroundColor3 = colors.resizeHandle
+resizeHandle.BorderSizePixel = 0
+resizeHandle.Size = UDim2.new(0, 16, 0, 16)
+resizeHandle.Position = UDim2.new(1, -16, 1, -16)
+resizeHandle.Parent = mainFrame
+
+-- Resize functionality (works for both mouse and touch)
+local resizing = false
+local resizeStartSize, resizeStartPos
+
+local function updateResize(input)
+    local delta = input.Position - resizeStartPos
+    local newWidth = math.max(300, resizeStartSize.X.Offset + delta.X)
+    local newHeight = math.max(200, resizeStartSize.Y.Offset + delta.Y)
+    mainFrame.Size = UDim2.new(0, newWidth, 0, newHeight)
+end
+
+resizeHandle.InputBegan:Connect(function(input)
+    if
+        input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch
+    then
+        resizing = true
+        resizeStartSize = mainFrame.Size
+        resizeStartPos = input.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                resizing = false
+            end
+        end)
+    end
+end)
+
+resizeHandle.InputChanged:Connect(function(input)
+    if
+        input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch
+    then
+        dragInput = input
+    end
+end)
+
+game:GetService('UserInputService').InputChanged:Connect(function(input)
+    if input == dragInput and resizing then
+        updateResize(input)
+    end
+end)
+
+-- Tab management
+local tabs = {}
+local currentTab = nil
+
+local function UpdateFrameSize()
+    if currentTab then
+        -- Auto-size the content frame based on its contents
+        currentTab.content.Size = UDim2.new(
+            1,
+            0,
+            0,
+            currentTab.currentYPosition
+        )
+    end
+end
+
+local function SwitchTab(tab)
+    if currentTab then
+        currentTab.content.Visible = false
+        currentTab.button.BackgroundColor3 = colors.tabInactive
+    end
+
+    currentTab = tab
+    currentTab.content.Visible = true
+    currentTab.button.BackgroundColor3 = colors.tabActive
+end
+
+function CreateTab(tabName)
+    local tabButton = Instance.new('TextButton')
+    tabButton.Name = tabName .. 'TabButton'
+    tabButton.BackgroundColor3 = colors.tabInactive
+    tabButton.BorderSizePixel = 0
+    tabButton.Size = UDim2.new(0, 100, 1, 0)
+    tabButton.Font = Enum.Font.Code
+    tabButton.Text = tabName
+    tabButton.TextColor3 = colors.text
+    tabButton.TextSize = 14
+    tabButton.Parent = tabScrollingFrame
+
+    -- Position the tab button after the previous tabs
+    if #tabs > 0 then
+        local lastTab = tabs[#tabs].button
+        tabButton.Position = UDim2.new(
+            0,
+            lastTab.AbsolutePosition.X
+                + lastTab.AbsoluteSize.X
+                - tabScrollingFrame.AbsolutePosition.X,
+            0,
+            0
+        )
+    else
+        tabButton.Position = UDim2.new(0, 0, 0, 0)
+    end
+
+    local contentFrame = Instance.new('ScrollingFrame')
+    contentFrame.Name = tabName .. 'Content'
+    contentFrame.BackgroundTransparency = 1
+    contentFrame.Size = UDim2.new(1, 0, 1, 0)
+    contentFrame.Visible = false
+    contentFrame.ScrollBarThickness = 4
+    contentFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+    contentFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    contentFrame.Parent = tabContentContainer
+
+    local contentLayout = Instance.new('UIListLayout')
+    contentLayout.Padding = UDim.new(0, 5)
+    contentLayout.Parent = contentFrame
+
+    local tab = {
+        name = tabName,
+        button = tabButton,
+        content = contentFrame,
+        currentYPosition = 0,
+        elementPadding = 3,
+        sectionPadding = 10,
+    }
+
+    table.insert(tabs, tab)
+
+    tabButton.MouseButton1Click:Connect(function()
+        -- Hide all other tab contents first
+        for _, otherTab in ipairs(tabs) do
+            otherTab.content.Visible = false
+            otherTab.button.BackgroundColor3 = colors.tabInactive
+        end
+
+        -- Show this tab's content
+        contentFrame.Visible = true
+        tabButton.BackgroundColor3 = colors.tabActive
+    end)
+
+    -- If this is the first tab, make it active
+    if #tabs == 1 then
+        contentFrame.Visible = true
+        tabButton.BackgroundColor3 = colors.tabActive
+    end
+
+    -- Create functions for this tab
+    local tabFunctions = {}
+
+    function tabFunctions.CreateSection(titleText)
+        local sectionFrame = Instance.new('Frame')
+        sectionFrame.BackgroundTransparency = 1
+        sectionFrame.Size = UDim2.new(1, 0, 0, 26)
+        sectionFrame.LayoutOrder = tab.currentYPosition
+        sectionFrame.Parent = tab.content
+
+        local label = Instance.new('TextLabel')
+        label.BackgroundTransparency = 1
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.Font = Enum.Font.Code
+        label.Text = titleText
+        label.TextColor3 = colors.text
+        label.TextSize = 16
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.TextStrokeTransparency = 0.9
+        label.Parent = sectionFrame
+
+        local divider = Instance.new('Frame')
+        divider.BackgroundColor3 = colors.border
+        divider.BorderSizePixel = 0
+        divider.Position = UDim2.new(0, 0, 1, -1)
+        divider.Size = UDim2.new(1, 0, 0, 1)
+        divider.Parent = sectionFrame
+
+        tab.currentYPosition = tab.currentYPosition + 26 + tab.elementPadding
+        return sectionFrame
+    end
+    -- [Previous code remains the same until the CreateTab function]
+
+    function tabFunctions.CreateButton(buttonName, callback)
+        local button = Instance.new('TextButton')
+        button.BackgroundColor3 = colors.button
+        button.BorderSizePixel = 0
+        button.Size = UDim2.new(1, 0, 0, 24)
+        button.LayoutOrder = tab.currentYPosition
+        button.Font = Enum.Font.Code
+        button.Text = '> ' .. buttonName
+        button.TextColor3 = colors.text
+        button.TextSize = 14
+        button.TextXAlignment = Enum.TextXAlignment.Left
+        button.ClipsDescendants = true
+        button.Parent = tab.content
+
+        local originalColor = button.BackgroundColor3
+        local hoverColor = colors.buttonHover
+
+        button.MouseEnter:Connect(function()
+            button.BackgroundColor3 = hoverColor
+        end)
+
+        button.MouseLeave:Connect(function()
+            button.BackgroundColor3 = originalColor
+        end)
+
+        button.MouseButton1Click:Connect(function()
+            callback()
+        end)
+
+        tab.currentYPosition = tab.currentYPosition + 24 + tab.elementPadding
+        return button
+    end
+
+    function tabFunctions.CreateToggle(toggleName, defaultState, callback)
+        local frame = Instance.new('Frame')
+        frame.BackgroundTransparency = 1
+        frame.Size = UDim2.new(1, 0, 0, 24)
+        frame.LayoutOrder = tab.currentYPosition
+        frame.Parent = tab.content
+
+        local label = Instance.new('TextLabel')
+        label.BackgroundTransparency = 1
+        label.Size = UDim2.new(0.6, 0, 1, 0)
+        label.Font = Enum.Font.Code
+        label.Text = toggleName
+        label.TextColor3 = colors.text
+        label.TextSize = 14
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = frame
+
+        local toggle = Instance.new('TextButton')
+        toggle.AnchorPoint = Vector2.new(1, 0)
+        toggle.Position = UDim2.new(1, 0, 0, 0)
+        toggle.Size = UDim2.new(0.35, 0, 1, 0)
+        toggle.BackgroundColor3 = defaultState and colors.toggleOn
+            or colors.toggleOff
+        toggle.Text = defaultState and 'ON' or 'OFF'
+        toggle.Font = Enum.Font.Code
+        toggle.TextColor3 = colors.text
+        toggle.TextSize = 14
+        toggle.BorderSizePixel = 0
+        toggle.Parent = frame
+
+        local state = defaultState
+        toggle.MouseButton1Click:Connect(function()
+            state = not state
+            toggle.Text = state and 'ON' or 'OFF'
+            toggle.BackgroundColor3 = state and colors.toggleOn
+                or colors.toggleOff
+            callback(state)
+        end)
+
+        tab.currentYPosition = tab.currentYPosition + 24 + tab.elementPadding
+        return toggle
+    end
+
+    function tabFunctions.CreateDropdown(titleText, getOptionsFunc, callback)
+        local dropdownFrame = {}
+        local dropdownButton = Instance.new('TextButton')
+        dropdownButton.BackgroundColor3 = colors.input
+        dropdownButton.BorderSizePixel = 0
+        dropdownButton.Size = UDim2.new(1, 0, 0, 24)
+        dropdownButton.LayoutOrder = tab.currentYPosition
+        dropdownButton.Font = Enum.Font.Code
+        dropdownButton.Text = titleText .. ': [Select]'
+        dropdownButton.TextColor3 = colors.text
+        dropdownButton.TextSize = 14
+        dropdownButton.TextXAlignment = Enum.TextXAlignment.Left
+        dropdownButton.ClipsDescendants = true
+        dropdownButton.Parent = tab.content
+
+        local optionHolder = Instance.new('ScrollingFrame')
+        optionHolder.BackgroundColor3 = colors.background
+        optionHolder.BorderSizePixel = 1
+        optionHolder.BorderColor3 = colors.border
+        optionHolder.Position = UDim2.new(0, 0, 0, tab.currentYPosition + 24)
+        optionHolder.Size = UDim2.new(1, 0, 0, 100)
+        optionHolder.CanvasSize = UDim2.new(0, 0, 0, 0)
+        optionHolder.ScrollBarThickness = 4
+        optionHolder.ScrollingDirection = Enum.ScrollingDirection.Y
+        optionHolder.ZIndex = 2
+        optionHolder.Visible = false
+        optionHolder.Parent = tab.content
+        optionHolder.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        optionHolder.ClipsDescendants = true
+
+        local uiList = Instance.new('UIListLayout')
+        uiList.Padding = UDim.new(0, 2)
+        uiList.SortOrder = Enum.SortOrder.LayoutOrder
+        uiList.Parent = optionHolder
+
+        local isOpen = false
+        local optionButtons = {}
+        local selectedOption = nil
+
+        function dropdownFrame:ClearOptions()
+            for _, btn in ipairs(optionButtons) do
+                btn:Destroy()
+            end
+            optionButtons = {}
+        end
+
+        function dropdownFrame:PopulateOptions()
+            self:ClearOptions()
+            local options = getOptionsFunc()
+            for _, option in ipairs(options) do
+                local opt = Instance.new('TextButton')
+                opt.BackgroundColor3 = colors.input
+                opt.BorderSizePixel = 0
+                opt.Size = UDim2.new(1, 0, 0, 22)
+                opt.Font = Enum.Font.Code
+                opt.Text = '→ ' .. option
+                opt.TextColor3 = colors.subtext
+                opt.TextSize = 13
+                opt.TextXAlignment = Enum.TextXAlignment.Left
+                opt.ClipsDescendants = true
+                opt.Parent = optionHolder
+
+                opt.MouseButton1Click:Connect(function()
+                    selectedOption = option
+                    dropdownButton.Text = titleText .. ': [' .. option .. ']'
+                    callback(option)
+                    isOpen = false
+                    optionHolder.Visible = false
+                end)
+
+                table.insert(optionButtons, opt)
+            end
+        end
+
+        dropdownButton.MouseButton1Click:Connect(function()
+            isOpen = not isOpen
+            if isOpen then
+                dropdownFrame:PopulateOptions()
+                optionHolder.Visible = true
+            else
+                optionHolder.Visible = false
+            end
+        end)
+
+        -- Adjust spacing for dropdown and its button
+        tab.currentYPosition = tab.currentYPosition
+            + 24
+            + 100
+            + tab.elementPadding
+        return dropdownFrame
+    end
+
+    function tabFunctions.CreateLabel(labelText)
+        local label = Instance.new('TextLabel')
+        label.BackgroundTransparency = 1
+        label.Size = UDim2.new(1, 0, 0, 20)
+        label.LayoutOrder = tab.currentYPosition
+        label.Font = Enum.Font.Code
+        label.Text = labelText
+        label.TextColor3 = colors.subtext
+        label.TextSize = 12
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = tab.content
+
+        tab.currentYPosition = tab.currentYPosition + 20 + tab.elementPadding
+        return label
+    end
+
+    function tabFunctions.CreateTextbox(labelText, defaultText, callback)
+        local frame = Instance.new('Frame')
+        frame.BackgroundTransparency = 1
+        frame.Size = UDim2.new(1, 0, 0, 24)
+        frame.LayoutOrder = tab.currentYPosition
+        frame.Parent = tab.content
+
+        local label = Instance.new('TextLabel')
+        label.BackgroundTransparency = 1
+        label.Size = UDim2.new(0.4, 0, 1, 0)
+        label.Font = Enum.Font.Code
+        label.Text = labelText
+        label.TextColor3 = colors.text
+        label.TextSize = 14
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = frame
+
+        local textbox = Instance.new('TextBox')
+        textbox.AnchorPoint = Vector2.new(1, 0)
+        textbox.Position = UDim2.new(1, 0, 0, 0)
+        textbox.Size = UDim2.new(0.6, 0, 1, 0)
+        textbox.BackgroundColor3 = colors.input
+        textbox.Text = defaultText or ''
+        textbox.ClearTextOnFocus = false
+        textbox.Font = Enum.Font.Code
+        textbox.TextColor3 = colors.text
+        textbox.TextSize = 14
+        textbox.TextXAlignment = Enum.TextXAlignment.Left
+        textbox.BorderSizePixel = 0
+        textbox.Parent = frame
+
+        local function submitText()
+            local text = textbox.Text
+            if text and text:match('%S') then -- text contains at least one non-space char
+                local success, err = pcall(function()
+                    callback(text)
+                end)
+                if success then
+                    textbox.Text = '' -- clear only on success
+                else
+                    warn('Error in callback:', err)
+                end
+            end
+        end
+
+        textbox.FocusLost:Connect(function(enterPressed)
+            if enterPressed then
+                submitText()
+            end
+        end)
+
+        tab.currentYPosition = tab.currentYPosition + 24 + tab.elementPadding
+        return textbox
+    end
+
+    return tabFunctions
+end
+--ETC
+local ESP = {
+    enabled = false,
+    objects = {},
+    highlightColor = Color3.fromRGB(255, 100, 100), -- Soft red color
+    textColor = Color3.fromRGB(255, 255, 255), -- White text
+}
+
+-- Create highlight for a single player
+function ESP:Create(player)
+    if self.objects[player] then
+        return
+    end -- Skip if already exists
+
+    local function setupESP(character)
+        -- Clean up existing ESP if any
+        if self.objects[player] then
+            for _, obj in pairs(self.objects[player]) do
+                obj:Destroy()
+            end
+        end
+        self.objects[player] = {}
+
+        -- Wait for character parts
+        local head = character:WaitForChild('Head')
+
+        -- Create full-body highlight
+        local highlight = Instance.new('Highlight')
+        highlight.Name = 'ESP_Highlight'
+        highlight.Adornee = character
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.FillColor = self.highlightColor
+        highlight.FillTransparency = 0.7
+        highlight.OutlineColor = self.highlightColor
+        highlight.OutlineTransparency = 0.3
+        highlight.Enabled = self.enabled
+        highlight.Parent = character
+        table.insert(self.objects[player], highlight)
+
+        -- Create name tag
+        local billboard = Instance.new('BillboardGui')
+        billboard.Name = 'ESP_Name'
+        billboard.Adornee = head
+        billboard.Size = UDim2.new(0, 200, 0, 50)
+        billboard.StudsOffset = Vector3.new(0, 3.5, 0)
+        billboard.AlwaysOnTop = true
+        billboard.Enabled = self.enabled
+        billboard.Parent = head
+
+        local nameLabel = Instance.new('TextLabel')
+        nameLabel.Text = player.Name
+        nameLabel.Size = UDim2.new(1, 0, 1, 0)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.TextColor3 = self.textColor
+        nameLabel.TextStrokeTransparency = 0
+        nameLabel.Font = Enum.Font.Code
+        nameLabel.TextSize = 18
+        nameLabel.Visible = true
+        nameLabel.Parent = billboard
+        table.insert(self.objects[player], billboard)
+
+        -- Handle character cleanup
+        character.AncestryChanged:Connect(function(_, parent)
+            if not parent then -- Character was destroyed
+                if self.objects[player] then
+                    for _, obj in pairs(self.objects[player]) do
+                        obj:Destroy()
+                    end
+                    self.objects[player] = nil
+                end
+            end
+        end)
+    end
+
+    -- Set up for current character
+    if player.Character then
+        setupESP(player.Character)
+    end
+
+    -- Set up for future characters
+    player.CharacterAdded:Connect(function(character)
+        setupESP(character)
+    end)
+end
+
+-- Toggle ESP visibility
+function ESP:SetEnabled(state)
+    self.enabled = state
+    for _, objects in pairs(self.objects) do
+        for _, obj in pairs(objects) do
+            if obj:IsA('Highlight') then
+                obj.Enabled = state
+            elseif obj:IsA('BillboardGui') then
+                obj.Enabled = state
+            end
+        end
+    end
+end
+
+-- Initialize ESP system
+function ESP:Init()
+    -- Existing players
+    for _, player in ipairs(game:GetService('Players'):GetPlayers()) do
+        if player ~= game:GetService('Players').LocalPlayer then
+            self:Create(player)
+        end
+    end
+
+    -- New players
+    game:GetService('Players').PlayerAdded:Connect(function(player)
+        self:Create(player)
+    end)
+
+    -- Player leaving cleanup
+    game:GetService('Players').PlayerRemoving:Connect(function(player)
+        if self.objects[player] then
+            for _, obj in pairs(self.objects[player]) do
+                obj:Destroy()
+            end
+            self.objects[player] = nil
+        end
+    end)
+end
+
+-- Initialize the ESP system
+ESP:Init()
+
+-- Create tabs and populate them with content
+local mainTab = CreateTab('Universal')
+local gametab = CreateTab('Notoriety')
+local settingsTab = CreateTab('Settings')
+
+-- Main Tab Content
+mainTab.CreateLabel('Like and Subscribe to BasicIsBetter!')
+mainTab.CreateSection('Main Functions')
+
+mainTab.CreateTextbox('Teleport To Player', 'Name Here', function(input)
+    local inputTrimmed = input:match('^%s*(.-)%s*$') -- trim whitespace
+    if inputTrimmed == '' then
+        error('Please enter a valid player name.')
+        return
+    end
+
+    local inputLower = inputTrimmed:lower()
+    local matchedPlayer = nil
+
+    -- Try to find player by exact name (case insensitive)
+    for _, plr in pairs(game.Players:GetPlayers()) do
+        if plr.Name:lower() == inputLower then
+            matchedPlayer = plr
+            break
+        end
+    end
+
+    -- If not exact match, try partial match
+    if not matchedPlayer then
+        for _, plr in pairs(game.Players:GetPlayers()) do
+            if plr.Name:lower():sub(1, #inputLower) == inputLower then
+                matchedPlayer = plr
+                break
+            end
+        end
+    end
+
+    if not matchedPlayer then
+        error('Player not found: ' .. inputTrimmed)
+    end
+
+    print('Teleporting to player:', matchedPlayer.Name)
+    local character = game.Players.LocalPlayer.Character
+    if character and character:FindFirstChild('HumanoidRootPart') then
+        character.HumanoidRootPart.CFrame = matchedPlayer.Character.HumanoidRootPart.CFrame
+            + Vector3.new(0, 5, 0)
+    else
+        error('Your character is not loaded or missing HumanoidRootPart')
+    end
+end)
+
+mainTab.CreateButton('Speed Boost', function()
+    game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = game.Players.LocalPlayer.Character.Humanoid.WalkSpeed
+        + 5
+end)
+
+mainTab.CreateToggle('Player ESP', false, function(state)
+    ESP:SetEnabled(state)
+    print('Player ESP:', state and 'ON' or 'OFF')
+end)
+gametab.CreateSection('ESPs')
+local function createESP(part, labelText, color)
+    local elements = {}
+
+    -- Optional Billboard
+    if labelText then
+        local billboard = Instance.new('BillboardGui')
+        billboard.Name = 'ESP'
+        billboard.Adornee = part
+        billboard.Size = UDim2.new(0, 60, 0, 20)
+        billboard.StudsOffset = Vector3.new(0, 3, 0)
+        billboard.AlwaysOnTop = true
+
+        local label = Instance.new('TextLabel', billboard)
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.TextColor3 = color
+        label.Text = labelText
+        label.TextScaled = true
+        label.Font = Enum.Font.SourceSansBold
+
+        billboard.Parent = part
+        table.insert(elements, billboard)
+    end
+
+    -- Always add Highlight
+    local highlight = Instance.new('Highlight')
+    highlight.Name = 'ESP_Highlight'
+    highlight.Adornee = part:IsA('Model') and part
+        or part:FindFirstAncestorOfClass('Model')
+    highlight.FillColor = color
+    highlight.OutlineColor = color
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = part
+    table.insert(elements, highlight)
+
+    return elements
+end
+
+local function clearESP(list)
+    for _, objects in pairs(list) do
+        for _, obj in pairs(objects) do
+            if obj and obj.Parent then
+                obj:Destroy()
+            end
+        end
+    end
+    table.clear(list)
+end
+
+-- Guard ESP
+gametab.CreateToggle('Guard ESP', false, function(state)
+    clearESP(guardEspParts)
+
+    if state then
+        for _, guard in pairs(Workspace:WaitForChild('Police'):GetChildren()) do
+            if
+                guard:IsA('Model') and guard:FindFirstChild('HumanoidRootPart')
+            then
+                local label = 'Guard'
+                local typeVal = guard:FindFirstChild('Type')
+                if typeVal and typeVal:IsA('StringValue') then
+                    label = typeVal.Value
+                end
+
+                local esp = createESP(guard, label, Color3.fromRGB(0, 255, 0))
+                table.insert(guardEspParts, esp)
+            end
+        end
+    end
+end)
+
+-- Camera ESP
+gametab.CreateToggle('Camera ESP', false, function(state)
+    clearESP(cameraEspParts)
+
+    if state then
+        for _, cam in pairs(Workspace:WaitForChild('Cameras'):GetChildren()) do
+            if cam:IsA('Model') then
+                local part = cam.PrimaryPart
+                    or cam:FindFirstChild('Handle')
+                    or cam:FindFirstChildWhichIsA('BasePart')
+                if part then
+                    local esp = createESP(
+                        cam,
+                        'Camera',
+                        Color3.fromRGB(255, 255, 0)
+                    )
+                    table.insert(cameraEspParts, esp)
+                end
+            end
+        end
+    end
+end)
+
+-- Item ESP
+gametab.CreateToggle('Item ESP', false, function(state)
+    clearESP(itemEspParts)
+
+    if state then
+        local lootablesFolder = Workspace:WaitForChild('Lootables')
+        for _, model in pairs(lootablesFolder:GetChildren()) do
+            if model:IsA('Model') then
+                -- Find children models except the one named "Model"
+                local targetModel = nil
+
+                local childrenModels = {}
+                for _, child in pairs(model:GetChildren()) do
+                    if child:IsA('Model') then
+                        table.insert(childrenModels, child)
+                    end
+                end
+
+                if #childrenModels == 0 then
+                    -- No child models, just use the parent model
+                    targetModel = model
+                elseif #childrenModels == 1 then
+                    -- Only one child model, check if it's named "Model"
+                    if childrenModels[1].Name == 'Model' then
+                        targetModel = model -- ignore "Model", use parent
+                    else
+                        targetModel = childrenModels[1]
+                    end
+                else
+                    -- Multiple child models, pick the one NOT named "Model"
+                    for _, childModel in pairs(childrenModels) do
+                        if childModel.Name ~= 'Model' then
+                            targetModel = childModel
+                            break
+                        end
+                    end
+
+                    -- If all children are "Model", fallback to parent
+                    if not targetModel then
+                        targetModel = model
+                    end
+                end
+
+                -- Now create billboard for the chosen targetModel
+                local part = targetModel.PrimaryPart
+                    or targetModel:FindFirstChildWhichIsA('BasePart')
+                if part then
+                    local billboard = Instance.new('BillboardGui')
+                    billboard.Name = 'ESP_Item'
+                    billboard.Adornee = part
+                    billboard.Size = UDim2.new(0, 120, 0, 30)
+                    billboard.StudsOffset = Vector3.new(0, 2, 0)
+                    billboard.AlwaysOnTop = true
+                    billboard.Parent = part
+
+                    local label = Instance.new('TextLabel')
+                    label.Size = UDim2.new(1, 0, 1, 0)
+                    label.BackgroundTransparency = 1
+                    label.TextColor3 = Color3.fromRGB(0, 170, 255)
+                    label.TextStrokeTransparency = 0
+                    label.Font = Enum.Font.Code
+                    label.TextSize = 16
+                    label.Text = targetModel.Name
+                    label.Parent = billboard
+
+                    table.insert(itemEspParts, { billboard })
+                end
+            end
+        end
+    end
+end)
+
+-- Settings Tab Content
+settingsTab.CreateSection('Options')
+settingsTab.CreateLabel('Settings will NOT be saved automatically.. for now :3')
+--like and subscribe :P new mobile friendly UI! (kinda lol)
