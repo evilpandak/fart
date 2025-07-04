@@ -4,7 +4,7 @@ local playerGui = player:WaitForChild('PlayerGui')
 local autoBankEquipActive = false
 local autoEquipToolName = ''
 local autoBankEquipLoop = nil
-
+setsimulationradius(999,999)
 local gui = Instance.new('ScreenGui')
 gui.Name = 'ModularGUI'
 gui.ResetOnSpawn = false
@@ -426,14 +426,13 @@ function CreateTab(tabName)
         optionHolder.BackgroundColor3 = colors.background
         optionHolder.BorderSizePixel = 1
         optionHolder.BorderColor3 = colors.border
-        optionHolder.Position = UDim2.new(0, 0, 0, tab.currentYPosition + 24)
-        optionHolder.Size = UDim2.new(1, 0, 0, 100)
+        optionHolder.Size = UDim2.new(0, 0, 0, 0) -- start hidden with 0 size
         optionHolder.CanvasSize = UDim2.new(0, 0, 0, 0)
         optionHolder.ScrollBarThickness = 4
         optionHolder.ScrollingDirection = Enum.ScrollingDirection.Y
         optionHolder.ZIndex = 2
         optionHolder.Visible = false
-        optionHolder.Parent = tab.content
+        optionHolder.Parent = gui -- parent outside UIListLayout to control position freely
         optionHolder.AutomaticCanvasSize = Enum.AutomaticSize.Y
         optionHolder.ClipsDescendants = true
 
@@ -445,6 +444,9 @@ function CreateTab(tabName)
         local isOpen = false
         local optionButtons = {}
         local selectedOption = nil
+
+        local maxHeight = 100
+        local optionHeight = 22 + 2 -- option button height + padding
 
         function dropdownFrame:ClearOptions()
             for _, btn in ipairs(optionButtons) do
@@ -475,10 +477,44 @@ function CreateTab(tabName)
                     callback(option)
                     isOpen = false
                     optionHolder.Visible = false
+                    optionHolder.Size = UDim2.new(0, 0, 0, 0)
+                    if renderStepConn then
+                        renderStepConn:Disconnect()
+                        renderStepConn = nil
+                    end
                 end)
 
                 table.insert(optionButtons, opt)
             end
+
+            local totalHeight = math.min(#options * optionHeight, maxHeight)
+            optionHolder.Size = UDim2.new(
+                dropdownButton.AbsoluteSize.X / gui.AbsoluteSize.X,
+                0,
+                0,
+                totalHeight
+            )
+        end
+
+        local RunService = game:GetService('RunService')
+        local renderStepConn = nil
+
+        local function updateOptionHolderPosition()
+            local buttonPos = dropdownButton.AbsolutePosition
+            local buttonSize = dropdownButton.AbsoluteSize
+            local guiPos = gui.AbsolutePosition
+
+            -- Calculate position relative to the GUI
+            local relativeX = buttonPos.X - guiPos.X
+            local relativeY = (buttonPos.Y - guiPos.Y) + buttonSize.Y
+
+            optionHolder.Position = UDim2.new(0, relativeX, 0, relativeY)
+            optionHolder.Size = UDim2.new(
+                0,
+                buttonSize.X,
+                optionHolder.Size.Y.Scale,
+                optionHolder.Size.Y.Offset
+            )
         end
 
         dropdownButton.MouseButton1Click:Connect(function()
@@ -486,16 +522,22 @@ function CreateTab(tabName)
             if isOpen then
                 dropdownFrame:PopulateOptions()
                 optionHolder.Visible = true
+                updateOptionHolderPosition()
+                -- Keep dropdown positioned while GUI moves
+                renderStepConn = RunService.RenderStepped:Connect(
+                    updateOptionHolderPosition
+                )
             else
                 optionHolder.Visible = false
+                optionHolder.Size = UDim2.new(0, 0, 0, 0)
+                if renderStepConn then
+                    renderStepConn:Disconnect()
+                    renderStepConn = nil
+                end
             end
         end)
 
-        -- Adjust spacing for dropdown and its button
-        tab.currentYPosition = tab.currentYPosition
-            + 24
-            + 100
-            + tab.elementPadding
+        tab.currentYPosition = tab.currentYPosition + 24 + tab.elementPadding
         return dropdownFrame
     end
 
@@ -698,7 +740,33 @@ end
 
 -- Initialize the ESP system
 ESP:Init()
+--ETC
+local ownedNPCs = {} -- key = model name, value = model instance
 
+-- Function to get current list of owned NPCs
+local function getOwnedNPCNames()
+    local localPlayer = game.Players.LocalPlayer
+    ownedNPCs = {}
+
+    for _, obj in ipairs(game.Workspace:GetDescendants()) do
+        if
+            obj:IsA('Model')
+            and obj ~= localPlayer.Character
+            and obj:FindFirstChild('Humanoid')
+            and obj:FindFirstChild('HumanoidRootPart')
+            and isnetworkowner(obj.HumanoidRootPart)
+        then
+            ownedNPCs[obj.Name] = obj
+        end
+    end
+
+    local names = {}
+    for name, _ in pairs(ownedNPCs) do
+        table.insert(names, name)
+    end
+    table.sort(names)
+    return names
+end
 -- Create tabs and populate them with content
 local mainTab = CreateTab('Universal')
 local trollgetab = CreateTab('Trollge Origin')
@@ -767,27 +835,23 @@ trollgetab.CreateSection('Farming')
 trollgetab.CreateToggle('TP To Chests', false, function(state)
     tpCollectActive = state
     local player = game.Players.LocalPlayer
-    local hrp = player.Character
-        and player.Character:FindFirstChild('HumanoidRootPart')
 
     if not tpCollectActive then
-        return -- stop here if turned off
+        return
     end
 
     if tpCollectLoop then
-        tpCollectLoop = nil -- Reset old coroutine
+        tpCollectLoop = nil
     end
 
     tpCollectLoop = coroutine.create(function()
         while tpCollectActive do
-            if
-                not player.Character
-                or not player.Character:FindFirstChild('HumanoidRootPart')
-            then
+            local character = player.Character
+            local hrp = character
+                and character:FindFirstChild('HumanoidRootPart')
+            if not hrp then
                 break
             end
-
-            hrp = player.Character.HumanoidRootPart
 
             local chests = game.Workspace.chests:GetChildren()
             for _, chest in ipairs(chests) do
@@ -799,17 +863,21 @@ trollgetab.CreateToggle('TP To Chests', false, function(state)
                     and chest:FindFirstChild('ProximityPrompt')
                 then
                     hrp.CFrame = chest.CFrame + Vector3.new(0, 2, 0)
-                    task.wait(0.15)
-                    fireproximityprompt(chest.ProximityPrompt)
-                    task.wait(0.1)
+
+                    repeat
+                        fireproximityprompt(chest.ProximityPrompt, true)
+                        task.wait() -- yield
+                    until not chest.Parent or not tpCollectActive
                 end
             end
 
-            task.wait(0.5)
+            task.wait(0.1) -- quick cd
         end
     end)
+
     coroutine.resume(tpCollectLoop)
 end)
+
 trollgetab.CreateToggle('TP To Gold/other', false, function(state)
     tpCollectActive = state
     local player = game.Players.LocalPlayer
@@ -1033,5 +1101,11 @@ trollgetab.CreateToggle('Auto Equip For Bank', false, function(state)
         equipNext()
     end
 end)
---slight update to origins along with the NEW gui implemented :)
---dont forget to like and subscribe, consider joining our discord :)
+trollgetab.CreateDropdown('Kill NPC', getOwnedNPCNames, function(selectedName)
+    local npc = ownedNPCs[selectedName]
+    if npc and npc:FindFirstChild('Humanoid') then
+        npc.Humanoid.Health = 0
+    end
+end)
+--small little trollge origin update!!! killing NPCs only works if they're close enough / you're owner of their "parts"
+--LIKE AND SUBSCRIBE!!!! HAVE A GOOD ONE
