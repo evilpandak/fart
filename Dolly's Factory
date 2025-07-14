@@ -802,33 +802,30 @@
         end,
         highlightColor = Color3.fromRGB(0, 200, 255), --RGBColor
     })
+    local machineLooping = false
+    local collecting = false
     dollytab.CreateSection('Main')
     dollytab.CreateLabel('Perfects will still display Miss, ignore!')
     dollytab.CreateLabel("DONT FORGET TO SUBSCRIBE TO BasicIsBetter's YOUTUBE!")
     dollytab.CreateToggle('Auto Use Machines', false, function(enabled)
-    local machineLooping = true
+    machineLooping = enabled
     local targetCFrame = CFrame.new(-643.6, 8.4, 528)
 
     task.spawn(function()
-        while enabled and machineLooping do
+        while machineLooping do
             local player = game.Players.LocalPlayer
             local character = player.Character
             if character and character:FindFirstChild('HumanoidRootPart') then
                 local root = character.HumanoidRootPart
                 local distance = (root.Position - targetCFrame.Position).Magnitude
 
-                -- Teleport player if too far from target spot
                 if distance > 6 then
                     root.CFrame = targetCFrame + Vector3.new(0, 3, 0)
                 end
 
-                -- Activate machines
                 for _, v in pairs(game.Workspace.Interacts:GetChildren()) do
                     if v.Name == 'Machine' then
-                        game.ReplicatedStorage.Remotes.PlushieMachine:InvokeServer(
-                            'UseMachine',
-                            v
-                        )
+                        game.ReplicatedStorage.Remotes.PlushieMachine:InvokeServer("UseMachine", v)
                     end
                 end
             end
@@ -836,10 +833,13 @@
         end
     end)
 
+    -- Save a reference so we can stop it later
+    dollytab._machineLoopRef = function() return machineLooping end
     if not enabled then
         machineLooping = false
     end
 end)
+
 
     dollytab.CreateToggle('Auto Perfect', false, function(test)
         if test then
@@ -862,7 +862,6 @@ end)
             a.__namecall = hookConnection
             setreadonly(a, true)
         else
-            -- Restore original __namecall
             local a = getrawmetatable(game)
             setreadonly(a, false)
             a.__namecall = hookConnection and getrawmetatable(game).__namecall
@@ -881,11 +880,11 @@ end)
         highlight = true,
     })
     dollytab.CreateSection('ETC')
-    dollytab.CreateToggle('Auto Collect Pickups', false, function(fart)
-    local collecting = true
+    dollytab.CreateToggle('Auto Collect Pickups', false, function(enabled)
+    collecting = enabled
 
     task.spawn(function()
-        while fart and collecting do
+        while collecting do
             local player = game.Players.LocalPlayer
             local character = player.Character
             if not character or not character:FindFirstChild('HumanoidRootPart') then
@@ -897,17 +896,17 @@ end)
             local foundPickup = false
 
             for _, item in ipairs(game.Workspace.Pickup:GetChildren()) do
-                if not fart then break end
+                if not collecting then break end
 
                 local main = item:FindFirstChild('Main')
                 if main and main:IsA('MeshPart') then
                     local prompt = main:FindFirstChildWhichIsA('ProximityPrompt', true)
-                    if prompt and prompt:IsA('ProximityPrompt') then
+                    if prompt then
                         foundPickup = true
-                        root.CFrame = main.CFrame + Vector3.new(0, 3, 0) -- TP above
+                        root.CFrame = main.CFrame + Vector3.new(0, 3, 0)
                         task.wait(0.15)
                         fireproximityprompt(prompt)
-                        task.wait(0.25) -- Wait for collection
+                        task.wait(0.25)
                     end
                 end
             end
@@ -918,7 +917,8 @@ end)
         end
     end)
 
-    if not fart then
+    dollytab._pickupLoopRef = function() return collecting end
+    if not enabled then
         collecting = false
     end
 end)
